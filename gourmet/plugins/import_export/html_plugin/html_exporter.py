@@ -198,6 +198,7 @@ class website_exporter (ExporterMultirec):
                   css=os.path.join(gglobals.style_dir,'default.css'),
                   imagedir='pics' + os.path.sep,
                   index_rows=['title','category','cuisine','rating','yields'],
+                  progress_func=None,
                   change_units=False,
                   mult=1):
         self.ext=ext
@@ -229,51 +230,79 @@ class website_exporter (ExporterMultirec):
         ExporterMultirec.__init__(self, rd, recipe_table, out,
                                   one_file=False,
                                   ext=self.ext,
+                                  progress_func=progress_func,
                                   exporter=html_exporter,
-                                  exporter_kwargs=self.exportargs)
-        
-    def write_header (self):
-        self.indexfn = os.path.join(self.outdir,'index%s%s'%(os.path.extsep,self.ext))
-        self.indexf = open(self.indexfn,'w')
-        self.indexf.write(HTML_HEADER_START)
-        self.indexf.write("<title>Recipe Index</title>")
-        if self.embed_css:
-            self.indexf.write("<style type='text/css'><!--\n")
-            f=open(self.css,'r')
-            for l in f.readlines():
-                self.indexf.write(l)
-            f.close()
-            self.indexf.write("--></style>")
-        else:
-            self.indexf.write("<link rel='stylesheet' href='%s' type='text/css'>"%self.make_relative_link(self.css))
-        self.indexf.write(HTML_HEADER_CLOSE)
-        self.indexf.write('<body>')
-        self.indexf.write('<div class="index"><table class="index">\n<tr>')
-        for r in self.index_rows:
-            self.indexf.write('<th class="%s">%s</th>'%(r,gglobals.REC_ATTR_DIC[r]))
-        self.indexf.write('</tr>\n')    
+                                  exporter_kwargs=self.exportargs, output_type="category-list")
 
-    def recipe_hook (self, rec, filename, exporter):
-        """Add index entry"""
-        # we link from the first row
-        
-        self.indexf.write(
-            """<tr><td class="%s">
+    def write_text(self,label,text):
+		if label=="headline":
+			h="h2"
+		self.indexf.write("<%s> %s </%s>"%(h,text,h))
+    def write_header (self,identifier="start",**kwargs):
+		if identifier=="start":
+			self.indexfn = os.path.join(self.outdir,'index%s%s'%(os.path.extsep,self.ext))
+			self.indexf = open(self.indexfn,'w')
+			self.indexf.write(HTML_HEADER_START)
+			self.indexf.write("<title>Recipe Index</title>")
+			if self.embed_css:
+				self.indexf.write("<style type='text/css'><!--\n")
+				f=open(self.css,'r')
+				for l in f.readlines():
+					self.indexf.write(l)
+				f.close()
+				self.indexf.write("--></style>")
+			else:
+				self.indexf.write("<link rel='stylesheet' href='%s' type='text/css'>"%self.make_relative_link(self.css))
+			self.indexf.write(HTML_HEADER_CLOSE)
+			self.indexf.write('<body>')
+			self.indexf.write('<div class="index">')
+			self.indexf.write('<h1>Rezeptbuch</h1>')
+		if identifier=="tabular":
+			if "text" in kwargs:
+				text=kwargs["text"]
+			self.indexf.write("<h1> %s </h1>"%(text))
+			self.indexf.write('<table class="index">\n<tr>')
+			for r in self.index_rows:
+				self.indexf.write('<th class="%s">%s</th>'%(r,gglobals.REC_ATTR_DIC[r]))
+			self.indexf.write('</tr>\n')    
+		if identifier=="list":
+			self.indexf.write('<ul>')
+
+    def recipe_hook (self, rec, filename, exporter, identifier="tabular"):
+		"""Add index entry"""
+		# we link from the first row
+		if identifier=="tabular":
+			self.indexf.write(
+				"""<tr><td class="%s">
                      <a href="%s">%s</a>
                    </td>"""%(self.index_rows[0],
                              #xml.sax.saxutils.escape(filename).replace(" ","%20"),
-                             self.make_relative_link(filename),
+                             #self.make_relative_link(filename),
+                             self.make_relative_link(self.generate_link(rec.id)),
                              xml.sax.saxutils.escape(self._grab_attr_(rec,self.index_rows[0]))
                              ))
-        for r in self.index_rows[1:]:
-            self.indexf.write('<td class="%s">%s</td>'%(r,self._grab_attr_(rec,r)))
-        self.indexf.write('</tr>')
-        self.imgcount=exporter.imgcount
-        self.added_dict[rec.id]=filename
+			for r in self.index_rows[1:]:
+				self.indexf.write('<td class="%s">%s</td>'%(r,self._grab_attr_(rec,r)))
+			self.indexf.write('</tr>')
+			self.imgcount=exporter.imgcount
+			self.added_dict[rec.id]=filename
+		else:
+			if identifier=="list":
+				self.indexf.write(
+				"""<li><a href="%s">%s</a></li>"""%(
+                             #xml.sax.saxutils.escape(filename).replace(" ","%20"),
+                             #self.make_relative_link(filename),
+                             self.make_relative_link(self.generate_link(rec.id)), 
+                             xml.sax.saxutils.escape(self._grab_attr_(rec,self.index_rows[0]))
+                             ))
+				#self.indexf.write('<li>)
 
-    def write_footer (self):
-        self.indexf.write('</table></div></body></html>')
-        self.indexf.close()
+    def write_footer (self,identifier="tabular"):
+		if identifier=="tabular":
+			self.indexf.write('</table></div></body></html>')
+			self.indexf.close()
+		if identifier=="list":
+			self.indexf.write('</ul>')
 
     def generate_link (self, id):
         if self.added_dict.has_key(id):

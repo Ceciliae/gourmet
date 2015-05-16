@@ -28,7 +28,7 @@ class ShoppingListSaver (ShoppingListPlugin):
             ('SaveAsRecipe',# name
              gtk.STOCK_SAVE_AS,# stock
              _('Save List as Recipe'), # text
-             _('<Ctrl><Shift>S'), # key-command
+             _('<control><alt>S'), # key-command
              _('Save current shopping list as a recipe for future use'), # tooltip
              self.save_as_recipe# callback
              ),

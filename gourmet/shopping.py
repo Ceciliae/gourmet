@@ -163,7 +163,7 @@ class Shopper:
                 cats[c]={i:a}
         ## next we turn our nested dictionaries into nested lists
         lst = []
-        for c,d in cats.items():
+        for c,d in cats.items():## for c  in ord_cats: d=cats[c] and ord_cats given by user or default
             itms = []
             for i,amts in d.items():
                 itms.append([i,self.amt_to_string(amts)])

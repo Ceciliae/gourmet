@@ -79,14 +79,13 @@ class ExportManager (plugin_loader.Pluggable):
         outfi.close()
         return filename
 
-    def offer_multiple_export (self, recs, prefs, parent=None, prog=None,
-                               export_all=False):
+    def offer_multiple_export (self, recs, prefs, parent=None, prog=None):
         """Offer user a chance to export multiple recipes at once.
 
         Return the exporter class capable of doing this and a
         dictionary of arguments for the progress dialog.
         """
-        if (not export_all) or (len(recs) < 950):
+        if len(recs) < 950:
             # inelegantly avoid bug that happens when this code runs
             # on large numbers of recipes. The good news is that this
             # that that will almost only ever happen when we're
@@ -128,12 +127,13 @@ class ExportManager (plugin_loader.Pluggable):
             extra_prefs = extra_prefs
         return extra_prefs
         
-    def get_multiple_exporter (self, recs, fn, exp_type=None,
-                               setup_gui=True, extra_prefs=EXTRA_PREFS_AUTOMATIC):
+    def get_multiple_exporter (self, recs, fn, exp_type=None,setup_gui=True, extra_prefs=EXTRA_PREFS_AUTOMATIC):
         if not exp_type:
             exp_type = de.get_type_for_filters(fn,self.get_multiple_filters())
         if self.can_export_type(exp_type):
             myexp = self.get_exporter(exp_type)
+            myexp.r=recs
+            myexp.rd=self.app.rd
             extra_prefs = self.get_extra_prefs(myexp,extra_prefs)
             pd_args={'label':myexp.label,'sublabel':myexp.sublabel%{'file':fn}}
             exporterInstance = myexp.get_multiple_exporter({'rd':self.app.rd,

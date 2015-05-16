@@ -1,0 +1,10 @@
+div.recipe, div.index { font-style: Times, Serif;}
+div.recipe img {float: right; padding: 1em}
+body {background-color: #FFFFFF}
+span.label { font-weight: bold; }
+span.title {font-size:x-large; font-weight: bold; background-color: #eef}
+p.title { font-size: x-large; text-align: center; font-weight: bold; background-color: #eef}
+p.title span.label {display: none}
+div.header p {margin-top: 0; margin-bottom: 0.2em; }
+div.ing { padding: 1em; border: solid 1px; }
+li.ing { list-style: none; border-top: 0.1em }

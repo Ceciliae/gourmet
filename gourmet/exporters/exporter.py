@@ -67,6 +67,7 @@ class exporter (SuspendableThread, Pluggable):
         SuspendableThread.__init__(self,self.name)
 
     def do_run (self):
+        print "exporter", self.out
         self.write_head()
         for task in self.order:
             if task=='image':
@@ -463,14 +464,15 @@ class exporter_mult (exporter):
 class ExporterMultirec (SuspendableThread, Pluggable):
 
     name = 'Exporter'
-
+    nocat=_("not categorized")
     def __init__ (self, rd, recipes, out, one_file=True,
                   ext='txt',
                   conv=None,
                   imgcount=1,
+                  progress_func=None,
                   exporter=exporter,
                   exporter_kwargs={},
-                  padding=None):
+                  padding=None,toc=False,output_type="one_file"):
         """Output all recipes in recipes into a document or multiple
         documents. if one_file, then everything is in one
         file. Otherwise, we treat 'out' as a directory and put
@@ -480,16 +482,30 @@ class ExporterMultirec (SuspendableThread, Pluggable):
         self.recipes = recipes
         self.out = out
         self.padding=padding
-        self.one_file = one_file
+        if "sorted_cat" in exporter_kwargs:
+            self.sorted_cat=exporter_kwargs["sorted_cat"]
+        else:
+            self.sorted_cat=[]
+        #self.one_file = one_file
         Pluggable.__init__(self,[BaseExporterMultiRecPlugin])
         SuspendableThread.__init__(self,self.name)
+        if progress_func: print 'Argument progress_func is obsolete and will be ignored:',progress_func
         self.ext = ext
         self.exporter = exporter
         self.exporter_kwargs = exporter_kwargs
         self.fractions = self.exporter_kwargs.get('fractions',
                                                   convert.FRACTIONS_ASCII)
         self.DEFAULT_ENCODING = self.exporter.DEFAULT_ENCODING
-        self.one_file = one_file
+        self.dictionary={}
+        self.output_type=output_type
+        self.toc=toc
+        #if "output_type" in kwargs:
+			#self.output_type=kwargs["output_type"]
+        #else:
+			#if one_file:
+				#self.output_type="one_file"
+			#else:
+				#self.output_type="rezept_files"
 
     def _grab_attr_ (self, obj, attr):
         if attr=='category':
@@ -519,55 +535,158 @@ class ExporterMultirec (SuspendableThread, Pluggable):
             return ret
 
     def append_referenced_recipes (self):
-        for r in self.recipes[:]:
-            reffed = self.rd.db.execute(
-                'select * from ingredients where recipe_id=? and refid is not null',r.id
-                )
-            for ref in reffed:
-                rec = self.rd.get_rec(ref.refid)
-                if not rec in self.recipes:
-                    print 'Appending recipe ',rec.title,'referenced in ',r.title
-                    self.recipes.append(rec)
+        #recursiv machen???
+        rec_list=self.recipes[:]
+        while not rec_list==[]:
+			r=rec_list.pop()
+			reffed = self.rd.db.execute('select * from ingredients where recipe_id=? and refid is not null',r.id)
+			for ref in reffed:
+				rec=self.rd.get_rec(ref.refid)
+				if not rec in self.recipes:
+					print 'Appending recipe ',rec.title,'referenced in ',r.title
+					self.recipes.append(rec)
+					rec_list.append(rec)
+        #for r in self.recipes[:]:
+        #    reffed = self.rd.db.execute(
+         #       'select * from ingredients where recipe_id=? and refid is not null',r.id
+          #      )
+          #  for ref in reffed:
+           #     rec = self.rd.get_rec(ref.refid)
+            #    if not rec in self.recipes:
+             #       print 'Appending recipe ',rec.title,'referenced in ',r.title
+              #      self.recipes.append(rec)
         
     @pluggable_method
     def do_run (self):
         self.rcount = 0
-        self.rlen = len(self.recipes)        
-        if not self.one_file:
+        self.rlen = len(self.recipes)   
+       # print "do run", self.out,self.output_type, type(self.out)     
+        if not self.output_type=="one_file":
             self.outdir=self.out
-            if os.path.exists(self.outdir):
-                if not os.path.isdir(self.outdir):
-                    self.outdir=self.unique_name(self.outdir)
-                    os.makedirs(self.outdir)
-            else: os.makedirs(self.outdir)
-        if self.one_file and type(self.out)==str:
+            if not os.path.exists(self.outdir):
+                #shutil.rmtree(self.outdir)
+                os.makedirs(self.outdir)
+                #if not os.path.isdir(self.outdir):
+                #    self.outdir=self.unique_name(self.outdir)
+                #    os.makedirs(self.outdir)
+            #else: os.makedirs(self.outdir)
+        if self.output_type=="one_file" and (type(self.out)==str or type(self.out)==unicode):
             self.ofi=open(self.out,'wb')
+            #print "make"
         else: self.ofi = self.out
         self.write_header()
         self.suspended = False
         self.terminated = False
         first = True
+        filelist=[]
         self.append_referenced_recipes()
+        ### make lists by categorie
+        if self.output_type=="category-list" or self.output_type=="category-chapter":
+			#print "start export", type(self.recipes), self.recipes
+			recipes_in_cat={}
+			for n,val in self.rd.fetch_count(self.rd.categories_table,'category'):
+				recipes_in_cat[val]=[]
+			recipes_in_cat[self.nocat]=[]
+			for r in self.recipes:
+				first=True
+				for cat in self.rd.get_cats(r):
+					recipes_in_cat[cat].append(r)
+					if first:
+						first=False
+						self.dictionary[r.id]=cat
+				if self.rd.get_cats(r)==[]:
+					recipes_in_cat[self.nocat].append(r)
+					self.dictionary[r.id]=self.nocat
+		### for later?list_recipes_in_cat=[recipes_in_cat[x] for x in catsort]
+		
+        if self.output_type=="category-list" or self.output_type=="category-chapter":
+			### not that fine, but working
+			sorted_cat=self.sorted_cat
+			if sorted_cat==[]:
+				for n,val in self.rd.fetch_count(self.rd.categories_table,'category'):
+					sorted_cat.append(val)
+				sorted_cat.append(self.nocat)
+			for val in sorted_cat: #define order of categorie?
+				found=False
+				for r in recipes_in_cat[val]:
+					#print "r", type(r), r.id, r.title,  self.rd.get_cats(r)[0], val
+					#print r.title
+					if not found and self.output_type=="category-list" and self.dictionary[r.id]==val:
+						self.write_text("headline",val)
+						self.write_header("list")
+					if not found and self.output_type=="category-chapter":
+						fn=self.generate_filename(val,self.ext,add_id=True)
+						#print "fn", fn, val
+						filelist.append(fn)
+						self.ofi=open(fn,'wb')
+						self.write_header("chapter", headline=val,filename=fn)		
+					found=True 
+					self.check_for_sleep()
+					if  self.output_type=="category-list":
+						fn=None
+						fn=self.generate_filename(r,self.ext,add_id=True)
+						filelist.append(fn)
+						self.ofi=open(fn,'wb')
+					if self.padding and not first:
+						self.ofi.write(self.padding)      
+					if self.dictionary[r.id]==val:
+						if self.output_type=="category-list":
+							e=self.exporter(out=self.ofi, r=r, rd=self.rd,start_html=True, end_html=True, **self.exporter_kwargs)
+							self.dictionary[r.title]=r.title
+						if self.output_type=="category-chapter":
+							e=self.exporter(out=self.ofi, r=r, rd=self.rd,start_html=False, end_html=False, **self.exporter_kwargs)
+							self.dictionary[r.title]=val
+						self.connect_subthread(e)
+						e.do_run()
+						if self.toc:
+							self.write_toc(recipe=r)
+						if self.output_type=="category-list":
+							self.recipe_hook(r,fn,e,"list")
+							e.write_foot()
+							self.ofi.close()
+						#else:
+						#	self.recipe_hook(r,fn,e)
+					else:
+						self.recipe_hook(r,fn,self,"list")
+				if self.output_type=="category-list" and found:
+					self.write_footer("list")
+				if self.output_type=="category-chapter" and found:
+					e.end_html=True
+					e.write_foot()
+					if self.toc:
+						self.write_toc(identifier="end")
+					self.ofi.close()
+			#self.write_footer("list")
+			#write index
+			self.write_header(identifier="tabular",text=_("index"))
         for r in self.recipes:
             self.check_for_sleep()
             msg = _("Exported %(number)s of %(total)s recipes")%{'number':self.rcount,'total':self.rlen}
             self.emit('progress',float(self.rcount)/float(self.rlen), msg)
             fn=None
-            if not self.one_file:
-                fn=self.generate_filename(r,self.ext,add_id=True)
-                self.ofi=open(fn,'wb')
-            if self.padding and not first:
-                self.ofi.write(self.padding)
-            e=self.exporter(out=self.ofi, r=r, rd=self.rd, **self.exporter_kwargs)
-            self.connect_subthread(e)
-            e.do_run()
-            self.recipe_hook(r,fn,e)
-            if not self.one_file:
+            if not r.id in self.dictionary:
+				print "one file"
+				if not self.output_type=="one_file":
+					fn=self.generate_filename(r,self.ext,add_id=True)
+					self.ofi=open(fn,'wb')
+				if self.padding and not first:
+					self.ofi.write(self.padding)
+				#print "exporter multi", type(self.ofi), self.ofi
+				e=self.exporter(out=self.ofi, r=r, rd=self.rd, **self.exporter_kwargs)
+				self.connect_subthread(e)
+				e.do_run()
+				self.recipe_hook(r,fn,e)
+            else:
+				self.recipe_hook(r,fn,self)
+            if not self.output_type=="one_file" and not self.ofi==None:
                 self.ofi.close()
             self.rcount += 1
             first = False
-        self.write_footer()
-        if self.one_file:
+        if (self.output_type=="category-chapter" or self.output_type=="category-list") and self.toc:
+			self.write_footer("close",files=filelist)
+        else:
+			self.write_footer()
+        if self.output_type=="one_file":
             self.ofi.close()
         self.timer.end()
         self.emit('progress',1,_("Export complete."))
@@ -582,7 +701,16 @@ class ExporterMultirec (SuspendableThread, Pluggable):
         pass
 
     def generate_filename (self, rec, ext, add_id=False):
-        title=rec.title
+        if type(rec)==unicode or type(rec)==str:
+			title=rec
+			add_id=False
+        else:
+			title=rec.title
+			if rec.id in self.dictionary:
+				title2=self.dictionary[rec.id]
+				if not title2==title:
+					add_id=False
+					title=title2
         # get rid of potentially confusing characters in the filename
         # Windows doesn't like a number of special characters, so for
         # the time being, we'll just get rid of all non alpha-numeric
@@ -601,8 +729,9 @@ class ExporterMultirec (SuspendableThread, Pluggable):
             title = _("Recipe")
         title=title.replace("/"," ")
         title=title.replace("\\"," ")
+        title=title.replace(' ','_')
         # Add ID #
-        if add_id:
+        if add_id and not type(rec)==unicode:
             title = title + str(rec.id)
         file_w_ext="%s%s%s"%(self.unique_name(title),os.path.extsep,ext)
         return os.path.join(self.outdir,file_w_ext)
