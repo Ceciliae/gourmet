@@ -1257,5 +1257,93 @@ if __name__ == '__main__':
     vb.show_all()
     w.show_all()
     gtk.main()
-    
+class ListSorter(PreferencesDialog):
+	def __init__(self,liste,default=[],**kwargs):
+		PreferencesDialog.__init__(self,default,option_label=None,value_label=None,label=_('epub Options'))
+		self.dragdroplist = DragDropList(liste)
+		self.hbox.pack_start(self.dragdroplist.scrolledwindow,fill=True,expand=True)
+		self.hbox.show_all()
+	def run (self):
+		self.show()
+		if self.widget_that_grabs_focus: self.widget_that_grabs_focus.grab_focus()
+		if self.modal: gtk.main()
+		return self.dragdroplist.get_data(), self.ret
 
+class DragDropList:
+	TARGETS = [
+		('MY_TREE_MODEL_ROW', gtk.TARGET_SAME_WIDGET, 0),
+		('text/plain', 0, 1),
+		('TEXT', 0, 2),
+		('STRING', 0, 3),
+		]
+	
+	def __init__ (self,liste):
+		self.scrolledwindow = gtk.ScrolledWindow()
+		# create a liststore with one string column to use as the model
+		self.liststore = gtk.ListStore(str)
+		# create the TreeView using liststore
+		self.treeview = gtk.TreeView(self.liststore)
+		
+		self.scrolledwindow.add(self.treeview)
+		
+		self.cell = gtk.CellRendererText()
+		self.tvcolumn = gtk.TreeViewColumn('Categorie', self.cell, text=0)
+		self.treeview.append_column(self.tvcolumn)
+		self.treeview.set_search_column(0)
+		model = self.treeview.get_model()
+		# make treeview searchable
+		self.treeview.set_search_column(0)
+		# Allow sorting on the column
+		self.tvcolumn.set_sort_column_id(0)
+		# Allow enable drag and drop of rows including row move
+		self.treeview.enable_model_drag_source( gtk.gdk.BUTTON1_MASK,self.TARGETS,gtk.gdk.ACTION_DEFAULT|gtk.gdk.ACTION_MOVE)
+		self.treeview.enable_model_drag_dest(self.TARGETS, gtk.gdk.ACTION_DEFAULT)
+		self.treeview.connect("drag_data_get", self.drag_data_get_data)
+		self.treeview.connect("drag_data_received", self.drag_data_received_data)
+		#self.cat_list=[[_("not categorized")]]
+		#model.append([_("not categorized")])
+		self.liste=liste
+		print type(liste)
+		for l in liste:
+			print l, type(l)
+			model.append([l])
+		#model.append(liste)
+		print self.liste
+
+	def set_page (self, *args, **kwargs):
+		self.last_kwargs = kwargs
+		size,areas = self.sizer.get_pagesize_and_frames_for_widget(*args,**kwargs)
+		self.set_page_area(size[0],size[1],areas)
+		
+	def drag_data_get_data(self, treeview, context, selection, target_id,etime):
+		treeselection = treeview.get_selection()
+		model, iter = treeselection.get_selected()
+		data = model.get_value(iter, 0)
+		selection.set(selection.target, 8, data)
+
+	def drag_data_received_data(self, treeview, context, x, y, selection,info, etime):
+		model = treeview.get_model()
+		data = selection.data
+		print "data", data, type(data),[unicode(data)]
+		drop_info = treeview.get_dest_row_at_pos(x, y)
+		if unicode(data) in self.liste:
+			self.liste.remove(unicode(data))
+			if drop_info:
+				path, position = drop_info
+				iter = model.get_iter(path)
+				i=int(model.get_string_from_iter(iter))
+				if (position == gtk.TREE_VIEW_DROP_BEFORE
+					or position == gtk.TREE_VIEW_DROP_INTO_OR_BEFORE):
+					model.insert_before(iter, [data])
+					self.liste.insert(i,unicode(data))
+				else:
+					model.insert_after(iter, [data])
+					self.liste.insert(i+1,unicode(data))
+			else:
+				model.append([data])
+				self.liste.append([unicode(data)])
+			if context.action == gtk.gdk.ACTION_MOVE:
+				context.finish(True, True, etime)
+		return
+	def get_data(self):
+		return self.liste

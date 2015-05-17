@@ -221,13 +221,17 @@ class book_exporter (ExporterMultirec):
                   progress_func=None,
                   change_units=False,
                   mult=1,**kwargs):
+        print "book_exporter"
         self.ext=ext
         self.css=css
         self.toc_count=0
         self.embed_css = False
-        #if os.path.isdir(out):
-            #print "clear", out
-            #shutil.rmtree(out)
+        print type(out), out
+        outtemp=out+'-temp'
+        print outtemp
+        if os.path.exists(outtemp):
+            print "clear", outtemp
+            shutil.rmtree(outtemp)
         out=out+"-temp/content"
         if copy_css:
             styleout = os.path.join(out,'style.css')
@@ -297,6 +301,7 @@ class book_exporter (ExporterMultirec):
 			self.indexf.write('<div class="index">')
 			
 			#zus. Dateien:
+			print self.outdir
 			self.covern= os.path.join(self.outdir,'cover%s%s'%(os.path.extsep,self.ext))
 			self.cover=open(self.covern,'w')
 			self.cover.write(HTML_HEADER_START)

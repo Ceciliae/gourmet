@@ -3,6 +3,7 @@ from gourmet import convert
 from gourmet.gglobals import REC_ATTR_DIC, DEFAULT_ATTR_ORDER, DEFAULT_TEXT_ATTR_ORDER, TEXT_ATTR_DIC, use_threads
 from gourmet.gdebug import TimeAction, debug, print_timer_info
 from gettext import gettext as _
+from gourmet.gtk_extras import dialog_extras as de
 from gourmet.plugin_loader import Pluggable, pluggable_method
 from gourmet.plugin import BaseExporterPlugin, BaseExporterMultiRecPlugin
 from gourmet.threadManager import SuspendableThread
@@ -459,12 +460,11 @@ class exporter_mult (exporter):
             self.out.write(" %s"%item)
         if optional:
             self.out.write(" (%s)"%_("optional"))
-        self.out.write("\n")        
-
+        self.out.write("\n")         
 class ExporterMultirec (SuspendableThread, Pluggable):
 
     name = 'Exporter'
-    nocat=_("not categorized")
+    nocat=unicode(_("not categorized"))
     def __init__ (self, rd, recipes, out, one_file=True,
                   ext='txt',
                   conv=None,
@@ -477,6 +477,7 @@ class ExporterMultirec (SuspendableThread, Pluggable):
         documents. if one_file, then everything is in one
         file. Otherwise, we treat 'out' as a directory and put
         individual recipe files within it."""
+        print "ExporterMultirec"
         self.timer=TimeAction('exporterMultirec.__init__()')
         self.rd = rd
         self.recipes = recipes
@@ -563,6 +564,7 @@ class ExporterMultirec (SuspendableThread, Pluggable):
        # print "do run", self.out,self.output_type, type(self.out)     
         if not self.output_type=="one_file":
             self.outdir=self.out
+            print "do run", self.outdir
             if not os.path.exists(self.outdir):
                 #shutil.rmtree(self.outdir)
                 os.makedirs(self.outdir)
@@ -678,7 +680,8 @@ class ExporterMultirec (SuspendableThread, Pluggable):
 				self.recipe_hook(r,fn,e)
             else:
 				self.recipe_hook(r,fn,self)
-            if not self.output_type=="one_file" and not self.ofi==None:
+            if not self.output_type=="one_file" and self.ofi==file:
+                print self.ofi
                 self.ofi.close()
             self.rcount += 1
             first = False
