@@ -17,6 +17,7 @@ class EpubExporterPlugin (ExporterPlugin):
             args['rd'], 
             args['rv'],
             args['file'],
+            args['extra_prefs']
             #args['conv'],
             )
 
@@ -30,5 +31,6 @@ class EpubExporterPlugin (ExporterPlugin):
             conv=args['conv'])
         e.run()
 
-    def run_extra_prefs_dialog (self):
-        pass
+    def run_extra_prefs_dialog(self,args):
+        args
+        return epub_exporter.get_epub_prefs(self, args)

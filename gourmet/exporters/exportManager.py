@@ -119,9 +119,9 @@ class ExportManager (plugin_loader.Pluggable):
                 return
             return instance
 
-    def get_extra_prefs (self, myexp, extra_prefs):
+    def get_extra_prefs (self, myexp, extra_prefs, args):
         if extra_prefs == EXTRA_PREFS_AUTOMATIC:
-            extra_prefs = myexp.run_extra_prefs_dialog() or {}
+            extra_prefs = myexp.run_extra_prefs_dialog(args) or {}
         elif extra_prefs == EXTRA_PREFS_DEFAULT:
             extra_prefs = myexp.get_default_prefs()
         else:
@@ -134,7 +134,7 @@ class ExportManager (plugin_loader.Pluggable):
             exp_type = de.get_type_for_filters(fn,self.get_multiple_filters())
         if self.can_export_type(exp_type):
             myexp = self.get_exporter(exp_type)
-            extra_prefs = self.get_extra_prefs(myexp,extra_prefs)
+            extra_prefs = self.get_extra_prefs(myexp,extra_prefs, {'rd':self.app.rd, 'rv':recs}) #give here rd for later use!
             pd_args={'label':myexp.label,'sublabel':myexp.sublabel%{'file':fn}}
             exporterInstance = myexp.get_multiple_exporter({'rd':self.app.rd,
                                                          'rv': recs,
