@@ -78,6 +78,7 @@ class OptionTable (gtk.Table):
                 # widgets contains the widget, the get method and the set method
                 self.widgets.append([w,'get_active','set_active'])
                 w.connect('toggled',lambda *args: self.emit('changed'))
+                w.set_name(l)
                 if self.changedcb:
                     w.connect('toggled',self.changedcb)
             elif type(v)==type(""):

@@ -11,6 +11,8 @@ class EpubExporterPlugin (ExporterPlugin):
     filetype_desc = EPUBFILE
     saveas_filters = [EPUBFILE,['application/epub+zip'],['*.epub']]
     saveas_single_filters = [EPUBFILE,['application/epub+zip'],['*.epub']]
+    chapter_sorted = True
+    indices = True
 
     def get_multiple_exporter (self, args):
         return epub_exporter.website_exporter(
@@ -30,7 +32,3 @@ class EpubExporterPlugin (ExporterPlugin):
             change_units=args['change_units'],
             conv=args['conv'])
         e.run()
-
-    def run_extra_prefs_dialog(self,args):
-        args
-        return epub_exporter.get_epub_prefs(self, args)
