@@ -246,7 +246,8 @@ class SorterDialog(de.ModalDialog):
         de.ModalDialog.__init__(self, okay=True, label="Select Option")
         self.hbox=gtk.HBox()
         self.hbox.show()
-        self.lastchapter=None
+        self.chaptershown=None
+        self.chapteractive=None
         #selected indices
         self.index_active=dict.fromkeys([_('Category'),_('Ingridiance'),_('alphabetic'),_('rating'),_('cooking time'),_('preperation time'),_('cuisine')], False)
         #shown dragdroplists in index collumn
@@ -345,13 +346,11 @@ class SorterDialog(de.ModalDialog):
         if not get_prefs().has_key('SORTER_DIALOG'):
             get_prefs()['SORTER_DIALOG'] = {}
         prefs = get_prefs()['SORTER_DIALOG']
-        if self.lastchapter!=None:
-            sorted_prefs['chapter_sorted']=self.lastchapter.name
-            prefs['chapter_sorted']=self.lastchapter.name
-            for chapter in self.dragdroplists.keys():
-                if self.lastchapter.name==chapter:
-                    sorted_prefs['chapter_sorted_order']=self.dragdroplists[chapter].rows
-                    prefs[self.lastchapter.name+'-sort']=self.dragdroplists[chapter].rows
+        sorted_prefs['chapter_sorted']=self.chapteractive
+        prefs['chapter_sorted']=self.chapteractive
+        if self.chaptershown!=None:
+            sorted_prefs['chapter_sorted_order']=self.dragdroplists[self.chapteractive].rows
+            prefs[self.chaptershown.name+'-sort']=self.dragdroplists[self.chapteractive].rows
         indices={}
         for index in self.index_active.keys():
             prefs[index+'-index']=self.index_active[index]
@@ -366,14 +365,14 @@ class SorterDialog(de.ModalDialog):
         return sorted_prefs
     def chapterchanged(self,args):
         active=cb_extras.cb_get_active_text(args) 
+        self.chapteractive=active
         #remove old from chapter side
-        if self.lastchapter!= None:
-            #print "chapterchanged", self.lastchapter
-            self.vboxleft.remove(self.lastchapter)
-            chapter=self.lastchapter.name
-            print "add chapter to right side", chapter, self.index_active.keys(), self.dragdroplists.keys(), self.index_active[chapter]
+        if self.chaptershown!= None:
+            #print "chapterchanged", self.chaptershown
+            self.vboxleft.remove(self.chaptershown)
+            chapter=self.chaptershown.name
             if chapter in self.dragdroplists.keys() and chapter in self.index_active.keys() and self.index_active[chapter]:
-                    self.vboxright.add(self.lastchapter)
+                    self.vboxright.add(self.chaptershown)
                     self.index_shown[chapter]=True
         #add new to chapter side
         if active in self.dragdroplists.keys():
@@ -382,10 +381,10 @@ class SorterDialog(de.ModalDialog):
                 self.vboxright.remove(self.dragdroplists[active])
                 self.index_shown[active]=False
             self.vboxleft.add(self.dragdroplists[active])
-            self.lastchapter=self.dragdroplists[active]
+            self.chaptershown=self.dragdroplists[active]
             self.vboxleft.show_all()
         else:
-            self.lastchapter=None
+            self.chaptershown=None
     def okcb (self, *args):
         if self.apply_func:
             if self.apply.get_property('sensitive'):
@@ -406,12 +405,12 @@ class SorterDialog(de.ModalDialog):
         index=args.name[:-1]
         if args.get_active(): #Button choosen
             if index in self.index_shown.keys():
-                if self.lastchapter!=self.dragdroplists[index]:
+                if self.chaptershown!=self.dragdroplists[index]:
                     self.vboxright.add(self.dragdroplists[index])
                     self.index_shown[index]=True
         else:
             if index in self.index_shown.keys():
-                if not self.lastchapter==self.dragdroplists[index]:
+                if not self.chaptershown==self.dragdroplists[index]:
                     #print "indexchanged", index
                     self.vboxright.remove(self.dragdroplists[index])
                     self.index_shown[index]=False

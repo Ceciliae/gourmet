@@ -12,6 +12,9 @@ from gourmet.gtk_extras import treeview_extras as te
 
 from ebooklib import epub
 from string import Template
+import locale
+locale.setlocale(locale.LC_ALL, "")
+
 
 RECIPE_HEADER = Template('''<?xml version="1.0" encoding="utf-8" standalone="no"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
@@ -46,6 +49,7 @@ class EpubWriter():
         self.ebook = epub.EpubBook()
         self.spine = ['nav']
         self.toc = []
+        self.filenametoitem={}
         
         # set metadata
         self.ebook.set_identifier("Cookme") # TODO: Something meaningful or time?
@@ -60,6 +64,12 @@ class EpubWriter():
                
         # This adds the field also known as keywords in some programs. 
         self.ebook.add_metadata('DC', 'subject', "cooking")
+        #title page, necessary??
+        #c1 = epub.EpubHtml(title=self.ebook.title, file_name='title.xhtml', lang='hr')
+        #c1.content=u'<html><head></head><body><h1>'+self.ebook.title+'</h1><body></html>'
+        #self.toc =[epub.Link('title.xhtml', self.ebook.title, self.ebook.title)]
+        #self.spine.append(c1)
+
         
     def addRecipeCssFromFile(self, filename):
         """ Adds the CSS file from filename to the book. The style will be added
@@ -113,21 +123,22 @@ class EpubWriter():
                 
         # add chapter
         self.ebook.add_item(c1)
-        self.spine.append(c1)
+        self.filenametoitem[fileName]=c1
+        #self.spine.append(c1)
                 
         # define Table Of Contents
-        self.toc.append( epub.Link(fileName, title, uniqueName) )
+        #self.toc.append( epub.Link(fileName, title, uniqueName) )
                 
-    def finish(self):
+    def finish(self, toc, spine):
         """ Finish the book and writes it to the disk.
         """
-        self.ebook.toc = self.toc
+        self.ebook.toc = toc
     
         # add default NCX and Nav file
         self.ebook.add_item(epub.EpubNcx())
         self.ebook.add_item(epub.EpubNav())        
         
-        self.ebook.spine = self.spine
+        self.ebook.spine=spine
         
         epub.write_epub(self.outFileName, self.ebook, {})
 
@@ -288,9 +299,16 @@ class website_exporter (ExporterMultirec):
         self.exportargs={ 'change_units':change_units,
                          'mult':mult,
                          'doc':self.doc}
-        
+        print "extra prefs webside_exporter", extra_prefs
         if conv:
             self.exportargs['conv']=conv
+        self.added_dict={}
+        self.rd=rd
+        self.recipe_table=recipe_table
+        self.indices=extra_prefs['indices']
+        self.chapter_sorted=extra_prefs['chapter_sorted']
+        if 'chapter_sorted_order' in extra_prefs:
+            self.chapter_sorted_order=[sort[0] for sort in extra_prefs['chapter_sorted_order']]
         ExporterMultirec.__init__(self, rd, recipe_table, out,
                                   one_file=True, 
                                   open_files=False,
@@ -300,16 +318,48 @@ class website_exporter (ExporterMultirec):
         
     def recipe_hook (self, rec, filename, exporter):
         """Add index entry"""
-        # TODO: Do some cool things here.
-        pass
+        self.added_dict[rec.id]=self.doc.getFileForRecipeID(rec.id)
+        
 
     def write_footer (self):
-        self.doc.finish()
+        toc=self.doc.toc
+        spine=self.doc.spine
+        if self.chapter_sorted in [_('Category'), _('cuisine')]:
+            chapters={}
+            for c in self.chapter_sorted_order:
+                chapters[c]=[]
+            chapters[_('Not categorized')]=[]
+        elif self.chapter_sorted in [_('alphabetic')]:
+            chapters={}
+        if self.chapter_sorted==_('Category'):
+            for recid in self.added_dict.keys():
+                cats=self.rd.get_cats(self.rd.get_rec(recid))
+                for cat in cats:
+                    chapters[cat].append(self.doc.filenametoitem[self.added_dict[recid]])
+                if cats==None:
+                    chapters[_('Not categorized')].append(self.doc.filenametoitem[self.added_dict[recid]])
+        elif self.chapter_sorted==_('cuisine'):
+            for recid in self.added_dict.keys():
+                cat = self.rd.get_rec(recid).cuisine
+                print cat, recid
+                if cat==None:
+                    chapters[_('Not categorized')].append(self.doc.filenametoitem[self.added_dict[recid]])
+                else:
+                    chapters[cat].append(self.doc.filenametoitem[self.added_dict[recid]])
+        elif self.chapter_sorted==_('alphabetic'):
+            for recid in self.added_dict.keys():
+                letter=self.rd.get_rec(recid).title[0].upper()
+                if letter in chapters.keys(): 
+                    chapters[letter].append(self.doc.filenametoitem[self.added_dict[recid]])
+                else: 
+                    chapters[letter]=[self.doc.filenametoitem[self.added_dict[recid]]]
+            print chapters.keys()
+            self.chapter_sorted_order=sorted(chapters.keys(), cmp=locale.strcoll)
+        if self.chapter_sorted in [_('Category'), _('cuisine'),_('alphabetic')]:
+            for chapter in self.chapter_sorted_order:
+                if chapters[chapter]!=[]:
+                    toc.append((epub.Section(chapter),chapters[chapter]))
+                    spine.extend(chapters[chapter])
+        #make index
+        self.doc.finish(toc, spine)
  
-
-EPUB_PREF_DEFAULT={'chapter_sorted_by':_('Category'),
-                   'ingridiance-index': False,
-                   'alphabetic-index': False,
-                   'category-index':False
-                   }
-
