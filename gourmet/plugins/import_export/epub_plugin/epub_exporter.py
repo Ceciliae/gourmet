@@ -303,9 +303,11 @@ class website_exporter (ExporterMultirec):
         if conv:
             self.exportargs['conv']=conv
         self.added_dict={}
-        self.rd=rd
+        #self.rd=rd
         self.recipe_table=recipe_table
         self.indices=extra_prefs['indices']
+        print"self.indices", self.indices
+        print"extra prefs", extra_prefs
         self.chapter_sorted=extra_prefs['chapter_sorted']
         if 'chapter_sorted_order' in extra_prefs:
             self.chapter_sorted_order=[sort[0] for sort in extra_prefs['chapter_sorted_order']]
@@ -322,8 +324,75 @@ class website_exporter (ExporterMultirec):
         
 
     def write_footer (self):
-        toc=self.doc.toc
-        spine=self.doc.spine
+        toc,spine=self.write_toc(self.doc.toc,self.doc.spine)
+        toc,spine=self.write_index(toc,spine)
+        self.doc.finish(toc, spine)
+    def write_index(self,toc,spine):
+        chapter=[]
+        number=1
+        for ind in self.indices.keys():
+            #write head
+            preparedDocument = []
+            print ind
+            preparedDocument.append(
+                RECIPE_HEADER.substitute(title=ind))
+            preparedDocument.append("<h1>%s</h1>"
+                % xml.sax.saxutils.escape(ind))
+            #make text
+            #sort recipes:
+            if ind ==_('rating'):
+                recipes=self.rd.fetch_all(self.rd.recipe_table,deleted=False,sort_by=[('rating',-1)])
+                def subtitle(rec):
+                    return "%s/5 %s"%(rec.rating/2.0,_('stars'))
+                def compair(rec):
+                    return rec.rating
+            elif ind ==_('preperation time'):
+                recipes=self.rd.fetch_all(self.rd.recipe_table,deleted=False,sort_by=[('preptime',1)])
+                def subtitle(rec):
+                    if rec.preptime>3600:
+                        return "%s %s %s %s"%(rec.preptime/3600, _('h'), (rec.preptime%3600)/60, _('min'))
+                    else:
+                        return "%s %s"%(rec.preptime/60, _('min'))
+                def compair(rec):
+                    return rec.preptime/60
+            elif ind == _('cooking time'):
+                recipes=self.rd.fetch_all(self.rd.recipe_table,deleted=False,sort_by=[('cooktime',1)])
+                def subtitle(rec):
+                    if rec.cooktime>3600:
+                        return "%s %s %s %s"%(rec.cooktime/3600, _('h'), (rec.cooktime%3600)/60, _('min'))
+                    else:
+                        return "%s %s"%(rec.cooktime/60, _('min'))
+                def compair(rec):
+                    return rec.cooktime/60
+            elif ind == _('alphabetic'):
+                recipes=self.rd.fetch_all(self.rd.recipe_table,deleted=False,sort_by=[('title',1)])
+                def subtitle(rec):
+                    return rec.title[0].upper()
+                def compair(rec):
+                    return rec.title[0].upper()
+            else:
+                recipes=[]
+            last=-1
+            for rec in recipes: 
+                if rec.id in self.added_dict.keys():
+                    if last==-1:
+                        preparedDocument.append(subtitle(rec)+': <ul>')
+                    elif compair(rec)!=last:
+                        preparedDocument.append('</ul>\n'+subtitle(rec)+': <ul>')
+                    preparedDocument.append('<li> <a href="%s">'%self.doc.getFileForRecipeID(rec.id) +
+                        '%s'%rec.title +
+                        '</a><\li>')
+                    last=compair(rec)
+            preparedDocument.append('</ul>')
+            #write foot
+            preparedDocument.append(RECIPE_FOOT)
+            self.doc.addRecipeText(-number,ind, "".join(preparedDocument) )
+            chapter.append(self.doc.filenametoitem[self.doc.getFileForRecipeID(-number)])
+            number=number+1
+        toc.append((epub.Section(_('index')),chapter))
+        spine.extend(chapter)
+        return toc, spine
+    def write_toc(self, toc, spine):
         if self.chapter_sorted in [_('Category'), _('cuisine')]:
             chapters={}
             for c in self.chapter_sorted_order:
@@ -336,13 +405,12 @@ class website_exporter (ExporterMultirec):
                 cats=self.rd.get_cats(self.rd.get_rec(recid))
                 for cat in cats:
                     chapters[cat].append(self.doc.filenametoitem[self.added_dict[recid]])
-                if cats==None:
+                if cats==[]:
                     chapters[_('Not categorized')].append(self.doc.filenametoitem[self.added_dict[recid]])
         elif self.chapter_sorted==_('cuisine'):
             for recid in self.added_dict.keys():
                 cat = self.rd.get_rec(recid).cuisine
-                print cat, recid
-                if cat==None:
+                if cat==[]:
                     chapters[_('Not categorized')].append(self.doc.filenametoitem[self.added_dict[recid]])
                 else:
                     chapters[cat].append(self.doc.filenametoitem[self.added_dict[recid]])
@@ -353,13 +421,16 @@ class website_exporter (ExporterMultirec):
                     chapters[letter].append(self.doc.filenametoitem[self.added_dict[recid]])
                 else: 
                     chapters[letter]=[self.doc.filenametoitem[self.added_dict[recid]]]
-            print chapters.keys()
             self.chapter_sorted_order=sorted(chapters.keys(), cmp=locale.strcoll)
         if self.chapter_sorted in [_('Category'), _('cuisine'),_('alphabetic')]:
             for chapter in self.chapter_sorted_order:
                 if chapters[chapter]!=[]:
                     toc.append((epub.Section(chapter),chapters[chapter]))
                     spine.extend(chapters[chapter])
-        #make index
-        self.doc.finish(toc, spine)
+            if chapters[_('Not categorized')]!=[]:
+                chapter=_('Not categorized')
+                toc.append((epub.Section(chapter),chapters[chapter]))
+                spine.extend(chapters[chapter])
+        return toc, spine
+        
  
